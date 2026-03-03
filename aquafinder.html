@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Aqua Pro Finder</title>
+<style>
+:root{--bg:#050e1a;--mid:#0a1f35;--cyan:#00e5ff;--teal:#00b4d8;--foam:#90e0ef;--text:#caf0f8;--muted:#4a8fa8;--card:rgba(10,31,53,0.88);--green:#00ff88;--yellow:#ffbb55;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 20% 40%,rgba(0,100,160,.15) 0%,transparent 60%);}
+header{padding:12px 14px 0;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:10;}
+.logo-text{font-family:'Courier New',monospace;font-size:16px;font-weight:700;color:var(--cyan);}
+.logo-sub{font-size:9px;color:var(--muted);letter-spacing:2px;display:block;}
+.badge{font-family:'Courier New',monospace;font-size:9px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--cyan);padding:3px 7px;border-radius:20px;}
+main{padding:10px 12px 28px;max-width:480px;margin:0 auto;position:relative;z-index:5;}
+
+/* 카메라 프레임 */
+.cam-wrap{position:relative;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:var(--mid);border:1px solid rgba(0,229,255,.2);box-shadow:0 0 18px rgba(0,229,255,.2);margin-bottom:10px;}
+video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:none;transform:scaleX(-1);}
+#preview{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:none;}
+canvas{display:none;}
+.ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);}
+.ph p{font-size:11px;text-align:center;opacity:.7;line-height:1.5;}
+
+/* 코너 마커 */
+.corners{position:absolute;inset:0;pointer-events:none;}
+.c{position:absolute;width:14px;height:14px;border-color:var(--cyan);border-style:solid;opacity:.7;}
+.c.tl{top:8px;left:8px;border-width:2px 0 0 2px}.c.tr{top:8px;right:8px;border-width:2px 2px 0 0}
+.c.bl{bottom:8px;left:8px;border-width:0 0 2px 2px}.c.br{bottom:8px;right:8px;border-width:0 2px 2px 0}
+
+/* 스캔 라인 */
+.scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:0;top:0;}
+.scan-line.active{opacity:1;animation:sd 1.5s ease-in-out 2;}
+@keyframes sd{0%{top:0}100%{top:100%}}
+
+/* 실시간 오버레이 */
+.overlay{position:absolute;bottom:0;left:0;right:0;padding:8px 10px 10px;background:linear-gradient(transparent,rgba(5,14,26,.92));display:none;}
+.overlay.show{display:block;}
+.ov-fish{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;}
+.ov-tag{background:rgba(0,229,255,.15);border:1px solid rgba(0,229,255,.35);color:var(--cyan);font-family:'Courier New',monospace;font-size:10px;padding:3px 8px;border-radius:12px;display:flex;align-items:center;gap:4px;}
+.ov-tag .cnt{background:var(--cyan);color:#050e1a;border-radius:8px;padding:1px 5px;font-weight:700;font-size:9px;}
+.ov-conf{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* 카운트다운 */
+.countdown{position:absolute;top:10px;right:10px;background:rgba(5,14,26,.75);border:1px solid rgba(0,229,255,.3);border-radius:20px;padding:4px 10px;font-family:'Courier New',monospace;font-size:11px;color:var(--cyan);display:none;align-items:center;gap:5px;}
+.countdown.show{display:flex;}
+.cd-ring{width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,229,255,.3);border-top-color:var(--cyan);animation:spin .8s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 분석 중 배너 */
+.analyzing-bar{position:absolute;top:0;left:0;right:0;background:rgba(0,229,255,.12);padding:5px;text-align:center;font-family:'Courier New',monospace;font-size:10px;color:var(--cyan);display:none;letter-spacing:1px;}
+.analyzing-bar.show{display:block;animation:fade 0.5s ease;}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* cam info */
+.cam-info{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(5,14,26,.8));padding:14px 10px 7px;display:none;align-items:center;justify-content:space-between;}
+.rec{display:flex;align-items:center;gap:5px;font-family:'Courier New',monospace;font-size:9px;color:var(--muted);}
+.dot{width:6px;height:6px;border-radius:50%;}.dot.live{background:var(--green);animation:bl 1.5s ease-in-out infinite;}
+@keyframes bl{0%,100%{opacity:1;box-shadow:0 0 4px var(--green)}50%{opacity:.5;box-shadow:none}}
+.auto-badge{font-family:'Courier New',monospace;font-size:9px;color:var(--green);background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.2);padding:2px 7px;border-radius:10px;}
+
+/* 버튼 */
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px;}
+.btn{padding:12px 8px;border-radius:9px;border:none;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:all .15s;font-family:inherit;}
+.btn:active{transform:scale(.96);}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.btn-p{background:linear-gradient(135deg,var(--teal),var(--cyan));color:#050e1a;}
+.btn-s{background:var(--card);color:var(--text);border:1px solid rgba(0,229,255,.2);}
+.btn-a{grid-column:1/-1;background:linear-gradient(135deg,#00b4d8,#00e5ff);color:#050e1a;font-size:14px;padding:14px;box-shadow:0 4px 18px rgba(0,229,255,.3);}
+.btn-stop{background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.3);color:#ff6b6b;}
+
+/* 카드 */
+.card{background:var(--card);border:1px solid rgba(0,229,255,.2);border-radius:11px;padding:14px;margin-bottom:10px;display:none;}
+.card.show{display:block;animation:fu .3s ease;}
+@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.sonar{width:40px;height:40px;margin:0 auto 10px;position:relative;}
+.ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--cyan);opacity:0;animation:sp 1.5s ease-out infinite;}
+.ring:nth-child(2){animation-delay:.5s}.ring:nth-child(3){animation-delay:1s}
+.dot-c{position:absolute;width:7px;height:7px;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--cyan);border-radius:50%;box-shadow:0 0 7px var(--cyan);}
+@keyframes sp{0%{transform:scale(.2);opacity:.8}100%{transform:scale(1.5);opacity:0}}
+.ltxt{text-align:center;font-family:'Courier New',monospace;font-size:11px;color:var(--muted);animation:p2 1.2s ease-in-out infinite;}
+@keyframes p2{0%,100%{opacity:1}50%{opacity:.3}}
+.err-card{background:rgba(255,60,60,.08);border-color:rgba(255,60,60,.2);color:#ff9999;font-size:12px;line-height:1.5;}
+
+/* 결과 */
+.res-hd{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid rgba(0,229,255,.1);margin-bottom:10px;}
+.rtitle{font-family:'Courier New',monospace;font-size:10px;color:var(--cyan);letter-spacing:1.5px;text-transform:uppercase;}
+.rbadge{background:linear-gradient(135deg,var(--teal),var(--cyan));color:#050e1a;font-family:'Courier New',monospace;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;}
+.fish-item{background:rgba(5,14,26,.6);border:1px solid rgba(0,229,255,.1);border-radius:8px;padding:10px 11px;margin-bottom:7px;animation:fu .3s ease both;}
+.fish-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.fk{font-size:13px;font-weight:700;}.fl{font-family:'Courier New',monospace;font-size:9px;color:var(--muted);font-style:italic;}
+.fish-right{display:flex;align-items:center;gap:6px;}
+.fc{background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.25);color:var(--cyan);font-family:'Courier New',monospace;font-weight:700;font-size:12px;padding:4px 10px;border-radius:14px;}
+.edit-btn{background:rgba(255,187,85,.1);border:1px solid rgba(255,187,85,.3);color:var(--yellow);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;font-family:inherit;}
+.conf-row{display:flex;align-items:center;gap:7px;}
+.conf-label{font-family:'Courier New',monospace;font-size:9px;color:var(--muted);white-space:nowrap;}
+.conf-bar{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;}
+.conf-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+.conf-pct{font-family:'Courier New',monospace;font-size:9px;min-width:32px;text-align:right;}
+.edit-area{margin-top:8px;display:none;}
+.edit-area.open{display:block;animation:fu .2s ease;}
+.edit-row{display:flex;gap:6px;margin-bottom:5px;align-items:center;}
+.edit-label{font-family:'Courier New',monospace;font-size:9px;color:var(--muted);width:28px;flex-shrink:0;}
+.edit-input{flex:1;background:rgba(5,14,26,.8);border:1px solid rgba(0,229,255,.2);border-radius:6px;padding:6px 9px;color:var(--text);font-size:12px;outline:none;font-family:inherit;}
+.edit-input:focus{border-color:var(--cyan);}
+.save-btn{background:linear-gradient(135deg,var(--teal),var(--cyan));border:none;color:#050e1a;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:2px;}
+.low-warn{font-size:10px;color:var(--yellow);margin-top:4px;display:none;}
+.low-warn.show{display:block;}
+.note-lbl{font-family:'Courier New',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin:10px 0 4px;padding-top:10px;border-top:1px solid rgba(0,229,255,.1);}
+.note-txt{font-size:11px;line-height:1.6;color:var(--foam);opacity:.85;}
+.toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--mid);border:1px solid rgba(0,229,255,.3);color:var(--cyan);font-family:'Courier New',monospace;font-size:11px;padding:7px 15px;border-radius:20px;z-index:100;transition:transform .3s;white-space:nowrap;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<header>
+  <div><span class="logo-text">Aqua Pro Finder</span><span class="logo-sub">AI 실시간 어종 분석기</span></div>
+  <span class="badge">Claude AI</span>
+</header>
+<main>
+  <div class="cam-wrap" id="camWrap">
+    <div class="ph" id="ph">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#4a8fa8" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <p>카메라를 시작하면<br>3초마다 자동으로 분석해요</p>
+    </div>
+    <video id="video" autoplay playsinline muted></video>
+    <img id="preview" alt=""/>
+    <canvas id="canvas"></canvas>
+    <div class="corners"><div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div></div>
+    <div class="scan-line" id="scanLine"></div>
+    <div class="analyzing-bar" id="analyzingBar">🔍 분석 중...</div>
+    <div class="overlay" id="overlay">
+      <div class="ov-fish" id="ovFish"></div>
+    </div>
+    <div class="countdown" id="countdown">
+      <div class="cd-ring"></div>
+      <span id="cdNum">3</span>초 후 분석
+    </div>
+    <div class="cam-info" id="camInfo">
+      <div class="rec"><div class="dot live"></div><span>LIVE</span></div>
+      <span class="auto-badge">AUTO 3s</span>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-p" id="camBtn">📷 카메라 시작</button>
+    <button class="btn btn-s" id="uploadBtn">📁 업로드</button>
+    <input type="file" id="fileInput" accept="image/*" style="display:none"/>
+    <button class="btn btn-s btn-stop" id="autoBtn" style="display:none" onclick="toggleAuto()">⏸ 자동분석 중지</button>
+    <button class="btn btn-a" id="analyzeBtn" disabled>🔍 지금 바로 분석</button>
+  </div>
+
+  <div class="card" id="loadingCard">
+    <div class="sonar"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="dot-c"></div></div>
+    <div class="ltxt">어종 탐지 중...</div>
+  </div>
+  <div class="card err-card" id="errCard"></div>
+  <div class="card" id="resCard">
+    <div class="res-hd"><span class="rtitle">분석 결과</span><span class="rbadge" id="badge">총 0마리</span></div>
+    <div id="fishList"></div>
+    <div id="noteWrap" style="display:none"><div class="note-lbl">AI 관찰 노트</div><div class="note-txt" id="noteText"></div></div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var KEY='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';
+  var stream=null, b64=null, camOn=false, _tt=null;
+  var autoOn=false, autoTimer=null, cdTimer=null, cdSec=3, analyzing=false;
+
+  /* ── 카메라 ── */
+  document.getElementById('camBtn').onclick = function(){ camOn ? stopCam() : startCam(); };
+
+  function startCam(){
+    navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}})
+    .then(function(s){
+      stream=s; var v=document.getElementById('video');
+      if('srcObject' in v) v.srcObject=s; else v.src=(URL||webkitURL).createObjectURL(s);
+      v.play(); v.style.display='block';
+      document.getElementById('ph').style.display='none';
+      document.getElementById('preview').style.display='none';
+      document.getElementById('camInfo').style.display='flex';
+      document.getElementById('autoBtn').style.display='inline-flex';
+      document.getElementById('camBtn').textContent='⏹ 카메라 종료';
+      document.getElementById('analyzeBtn').disabled=false;
+      camOn=true; b64=null;
+      startAuto();
+    }).catch(function(e){
+      showErr(e.name==='NotAllowedError'?'카메라 권한을 허용해주세요':e.name==='NotFoundError'?'카메라를 찾을 수 없어요':'카메라 오류: '+e.message);
+    });
+  }
+
+  function stopCam(){
+    stopAuto();
+    if(stream) stream.getTracks().forEach(function(t){t.stop();}); stream=null;
+    var v=document.getElementById('video'); v.style.display='none';
+    try{v.srcObject=null;}catch(e){v.src='';}
+    document.getElementById('ph').style.display='flex';
+    document.getElementById('camInfo').style.display='none';
+    document.getElementById('autoBtn').style.display='none';
+    document.getElementById('countdown').classList.remove('show');
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('camBtn').textContent='📷 카메라 시작';
+    camOn=false; if(!b64) document.getElementById('analyzeBtn').disabled=true;
+  }
+
+  /* ── 자동 분석 ── */
+  function startAuto(){
+    autoOn=true;
+    document.getElementById('autoBtn').textContent='⏸ 자동분석 중지';
+    document.getElementById('autoBtn').className='btn btn-s btn-stop';
+    startCountdown();
+  }
+
+  function stopAuto(){
+    autoOn=false;
+    clearTimeout(autoTimer); clearInterval(cdTimer);
+    document.getElementById('countdown').classList.remove('show');
+    if(document.getElementById('autoBtn').style.display!=='none'){
+      document.getElementById('autoBtn').textContent='▶ 자동분석 시작';
+      document.getElementById('autoBtn').className='btn btn-s';
+    }
+  }
+
+  window.toggleAuto = function(){
+    if(autoOn) stopAuto(); else startAuto();
+  };
+
+  function startCountdown(){
+    if(!autoOn||!camOn) return;
+    cdSec=3;
+    var cdEl=document.getElementById('countdown');
+    var cdNum=document.getElementById('cdNum');
+    cdEl.classList.add('show');
+    cdNum.textContent=cdSec;
+    clearInterval(cdTimer);
+    cdTimer=setInterval(function(){
+      cdSec--;
+      cdNum.textContent=cdSec;
+      if(cdSec<=0){
+        clearInterval(cdTimer);
+        cdEl.classList.remove('show');
+        if(autoOn&&camOn&&!analyzing) autoAnalyze();
+      }
+    },1000);
+  }
+
+  function autoAnalyze(){
+    if(!camOn||analyzing) return;
+    grabFrame();
+    analyze(true);
+  }
+
+  function grabFrame(){
+    var v=document.getElementById('video');
+    var c=document.getElementById('canvas');
+    c.width=v.videoWidth||640; c.height=v.videoHeight||480;
+    var ctx=c.getContext('2d'); ctx.translate(c.width,0); ctx.scale(-1,1); ctx.drawImage(v,0,0);
+    b64=c.toDataURL('image/jpeg',.75).split(',')[1];
+  }
+
+  /* ── 업로드 ── */
+  document.getElementById('uploadBtn').onclick=function(){ document.getElementById('fileInput').click(); };
+  document.getElementById('fileInput').onchange=function(e){
+    var f=e.target.files[0]; if(!f) return;
+    var r=new FileReader(); r.onload=function(ev){
+      b64=ev.target.result.split(',')[1];
+      var p=document.getElementById('preview'); p.src=ev.target.result; p.style.display='block';
+      document.getElementById('video').style.display='none';
+      document.getElementById('ph').style.display='none';
+      document.getElementById('camInfo').style.display='none';
+      document.getElementById('autoBtn').style.display='none';
+      document.getElementById('analyzeBtn').disabled=false;
+      stopAuto(); toast('✓ 업로드 완료');
+    };
+    r.readAsDataURL(f); e.target.value='';
+  };
+
+  document.getElementById('analyzeBtn').onclick=function(){
+    if(camOn) grabFrame();
+    analyze(false);
+  };
+
+  /* ── 분석 ── */
+  function analyze(isAuto){
+    if(!KEY||!KEY.startsWith('sk-ant-')){ showErr('API 키가 없습니다.'); return; }
+    if(!b64){ showErr('촬영하거나 사진을 업로드해주세요.'); return; }
+    if(analyzing) return;
+    analyzing=true;
+
+    if(isAuto){
+      document.getElementById('analyzingBar').classList.add('show');
+    } else {
+      hideErr(); show('loadingCard');
+      document.getElementById('analyzeBtn').disabled=true;
+    }
+    scan();
+
+    var prompt='당신은 수족관 어종 전문가입니다.
+
+【한국 수족관 흔한 어종】
+담수어: 금붕어,비단잉어,구피,네온테트라,베타,플래티,몰리,에인절피시,디스커스,코리도라스,플레코,아로와나
+해수어: 흰동가리,블루탱,옐로우탱,나비고기,라이온피시,복어,해마
+
+【지침】confidence는 0~100 정수. 60미만이면 korean앞에"?"붙이기. JSON만 출력.
+
+{"total":숫자,"fish":[{"korean":"어종명","latin":"학명","count":숫자,"confidence":숫자}],"note":"관찰노트1문장"}';
+
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','https://api.anthropic.com/v1/messages',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.setRequestHeader('x-api-key',KEY);
+    xhr.setRequestHeader('anthropic-version','2023-06-01');
+    xhr.setRequestHeader('anthropic-dangerous-direct-browser-access','true');
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState!==4) return;
+      analyzing=false;
+      document.getElementById('analyzingBar').classList.remove('show');
+      if(!isAuto){ hide('loadingCard'); document.getElementById('analyzeBtn').disabled=false; }
+      if(autoOn&&camOn) startCountdown();
+      try{
+        var d=JSON.parse(xhr.responseText);
+        if(xhr.status!==200){ if(!isAuto) showErr('API 오류('+xhr.status+')'); return; }
+        var txt=(d.content&&d.content[0]&&d.content[0].text)||'';
+        var result=JSON.parse(txt.replace(/```jsons*/g,'').replace(/```s*/g,'').trim());
+        renderOverlay(result);
+        if(!isAuto) renderResult(result);
+        else renderResult(result);
+      }catch(e){ if(!isAuto) showErr('파싱 오류: '+e.message); if(autoOn&&camOn) startCountdown(); }
+    };
+    xhr.onerror=function(){
+      analyzing=false;
+      document.getElementById('analyzingBar').classList.remove('show');
+      if(!isAuto){ hide('loadingCard'); document.getElementById('analyzeBtn').disabled=false; showErr('네트워크 오류'); }
+      if(autoOn&&camOn) startCountdown();
+    };
+    xhr.send(JSON.stringify({model:'claude-opus-4-6',max_tokens:512,messages:[{role:'user',content:[
+      {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+      {type:'text',text:prompt}
+    ]}]}));
+  }
+
+  /* ── 오버레이 렌더링 (카메라 위에 표시) ── */
+  function renderOverlay(r){
+    var ov=document.getElementById('overlay');
+    var fish=r.fish||[];
+    if(!fish.length){ ov.classList.remove('show'); return; }
+    var html='';
+    fish.forEach(function(f){
+      var conf=typeof f.confidence==='number'?f.confidence:80;
+      var cc=conf>=80?'#00ff88':conf>=60?'#ffbb55':'#ff6b6b';
+      html+='<div class="ov-tag"><div class="ov-conf" style="background:'+cc+'"></div>'+esc(f.korean||'미확인')+'<span class="cnt">'+( f.count||0)+'</span></div>';
+    });
+    document.getElementById('ovFish').innerHTML=html;
+    ov.classList.add('show');
+  }
+
+  /* ── 결과 카드 렌더링 ── */
+  function renderResult(r){
+    show('resCard');
+    document.getElementById('badge').textContent='총 '+(r.total||0)+'마리';
+    var list=document.getElementById('fishList'); list.innerHTML='';
+    (r.fish||[]).forEach(function(f,idx){
+      var conf=typeof f.confidence==='number'?f.confidence:80;
+      var cc=conf>=80?'#00ff88':conf>=60?'#ffbb55':'#ff6b6b';
+      var item=document.createElement('div'); item.className='fish-item'; item.style.animationDelay=(idx*.05)+'s'; item.dataset.idx=idx;
+      item.innerHTML='<div class="fish-top"><div><div class="fk" id="fk-'+idx+'">'+esc(f.korean||'미확인')+'</div><div class="fl" id="fl-'+idx+'">'+esc(f.latin||'')+'</div></div><div class="fish-right"><div class="fc" id="fc-'+idx+'">'+(f.count||0)+'마리</div><button class="edit-btn" onclick="toggleEdit('+idx+')">✏️</button></div></div><div class="conf-row"><span class="conf-label">신뢰도</span><div class="conf-bar"><div class="conf-fill" id="cf-'+idx+'" style="width:'+conf+'%;background:'+cc+'"></div></div><span class="conf-pct" style="color:'+cc+'" id="cp-'+idx+'">'+conf+'%</span></div><div class="low-warn'+(conf<60?' show':'')+'" id="lw-'+idx+'">⚠️ 신뢰도 낮음. 직접 수정해주세요.</div><div class="edit-area" id="ea-'+idx+'"><div class="edit-row"><span class="edit-label">어종</span><input class="edit-input" id="ei-kr-'+idx+'" value="'+esc(f.korean||'')+'"/></div><div class="edit-row"><span class="edit-label">학명</span><input class="edit-input" id="ei-lat-'+idx+'" value="'+esc(f.latin||'')+'"/></div><div class="edit-row"><span class="edit-label">마릿수</span><input class="edit-input" id="ei-cnt-'+idx+'" type="number" min="0" value="'+(f.count||0)+'"/></div><button class="save-btn" onclick="saveEdit('+idx+')">✓ 저장</button></div>';
+      list.appendChild(item);
+    });
+    var nw=document.getElementById('noteWrap');
+    if(r.note){nw.style.display='block';document.getElementById('noteText').textContent=r.note;}else nw.style.display='none';
+  }
+
+  window.toggleEdit=function(idx){ document.getElementById('ea-'+idx).classList.toggle('open'); };
+  window.saveEdit=function(idx){
+    var kr=document.getElementById('ei-kr-'+idx).value.trim();
+    var lat=document.getElementById('ei-lat-'+idx).value.trim();
+    var cnt=parseInt(document.getElementById('ei-cnt-'+idx).value)||0;
+    document.getElementById('fk-'+idx).textContent=kr||'미확인';
+    document.getElementById('fl-'+idx).textContent=lat;
+    document.getElementById('fc-'+idx).textContent=cnt+'마리';
+    var fill=document.getElementById('cf-'+idx); fill.style.width='100%'; fill.style.background='#00ff88';
+    document.getElementById('cp-'+idx).style.color='#00ff88'; document.getElementById('cp-'+idx).textContent='수정됨';
+    document.getElementById('lw-'+idx).classList.remove('show');
+    document.getElementById('ea-'+idx).classList.remove('open');
+    var items=document.querySelectorAll('.fish-item'),total=0;
+    items.forEach(function(item){var i=item.dataset.idx;var c=parseInt((document.getElementById('fc-'+i).textContent||'0'));total+=isNaN(c)?0:c;});
+    document.getElementById('badge').textContent='총 '+total+'마리';
+    toast('✓ 수정 완료!');
+  };
+
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function show(id){document.getElementById(id).classList.add('show');}
+  function hide(id){document.getElementById(id).classList.remove('show');}
+  function hideErr(){hide('errCard');}
+  function showErr(m){var e=document.getElementById('errCard');e.textContent=m;e.classList.add('show');}
+  function scan(){var sl=document.getElementById('scanLine');sl.classList.remove('active');void sl.offsetWidth;sl.classList.add('active');setTimeout(function(){sl.classList.remove('active');},3100);}
+  function toast(msg){clearTimeout(_tt);var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');_tt=setTimeout(function(){t.classList.remove('show');},2000);}
+})();
+</script>
+</body>
+</html>
